@@ -1,0 +1,1756 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>慢慢来 · 戒烟陪伴小站</title>
+
+<!-- 基础信息与分享卡片 -->
+<meta name="description" content="温柔的戒烟陪伴工具：记录坚持时长，看看省下的钱和身体变化，烟瘾来了还有呼吸练习和虚拟香烟陪你度过。数据只存在本地。">
+<meta name="author" content="小拜学AI">
+<meta name="copyright" content="由「小拜学AI」生成，仅供个人学习与自用，不得商用">
+<meta name="theme-color" content="#D97A90">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="慢慢来 · 戒烟陪伴小站">
+<meta property="og:title" content="每多坚持一秒，身体都在变好">
+<meta property="og:description" content="一个温柔的戒烟陪伴小站：计时、省钱、身体变化、烟瘾急救，全部离线可用。">
+<meta property="og:locale" content="zh_CN">
+<meta name="twitter:card" content="summary">
+
+<!-- PWA：可添加到桌面（file:// 下安装不生效，但不影响页面使用） -->
+<link rel="manifest" href="./manifest.webmanifest">
+<link rel="icon" href="./icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="./icon-192.png">
+
+<!--
+  ============================================================
+  慢慢来 · 戒烟陪伴小站
+  ------------------------------------------------------------
+  由「小拜学AI」生成，仅供个人学习与自用，不得商用。
+  ------------------------------------------------------------
+  使用说明（先读这里）
+  ------------------------------------------------------------
+  1. 双击本文件即可在浏览器打开，无需安装任何东西。
+  2. 完全离线可用：样式已编译在同目录的 styles.css，不依赖网络。
+     移动文件时请把 styles.css、icon.svg 一起带上。
+  3. 想改「单包烟价格」「一包多少根」「每天抽多少根」，
+     搜索本文件里的 “可修改参数” 四个字，在 <script> 顶部。
+     也可以在页面上的「抽烟习惯问卷」里直接填写。
+  4. 数据保存在浏览器 localStorage，换浏览器或清缓存会重置。
+  5. 如果给页面增删了 Tailwind 类名，需要重新编译样式：
+     npx tailwindcss@3.4.17 -c tailwind.config.js -i input.css -o styles.css --minify
+  ============================================================
+-->
+
+<!-- Tailwind CSS：本地编译产物（styles.css），断网也能正常显示 -->
+<link rel="stylesheet" href="./styles.css">
+
+<style>
+  /* 页面基础：抗锯齿，去掉移动端点击高亮 */
+  html { scroll-behavior: smooth; }
+  body {
+    -webkit-font-smoothing: antialiased;
+    -webkit-tap-highlight-color: transparent;
+    /* 给 iPhone 底部 home 指示条留出空间 */
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+
+  /* 数字统一等宽，避免变化时左右抖动 */
+  .num { font-variant-numeric: tabular-nums; }
+
+  /* 内容淡入上浮，用于卡片入场 */
+  @keyframes floatIn {
+    from { opacity: 0; transform: translateY(14px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  .float-in { animation: floatIn 0.9s cubic-bezier(0.22, 0.61, 0.36, 1) both; }
+
+  /* ---------- 背景里缓慢浮动的粉色光斑 ---------- */
+  .blob {
+    position: absolute;
+    border-radius: 9999px;
+    filter: blur(70px);
+    opacity: 0.55;
+    will-change: transform;
+  }
+  .blob-1 { width: 300px; height: 300px; background: #F9DDE4; top: -90px; left: -70px; animation: drift1 20s ease-in-out infinite; }
+  .blob-2 { width: 260px; height: 260px; background: #FCEAEE; top: 30%;  right: -80px; animation: drift2 26s ease-in-out infinite; }
+  .blob-3 { width: 220px; height: 220px; background: #F6D3DC; bottom: -60px; left: 20%; animation: drift3 22s ease-in-out infinite; }
+  @keyframes drift1 { 0%, 100% { transform: translate(0, 0) scale(1); } 50% { transform: translate(30px, 26px) scale(1.08); } }
+  @keyframes drift2 { 0%, 100% { transform: translate(0, 0) scale(1); } 50% { transform: translate(-26px, 30px) scale(1.10); } }
+  @keyframes drift3 { 0%, 100% { transform: translate(0, 0) scale(1); } 50% { transform: translate(22px, -24px) scale(1.06); } }
+
+  /* ---------- 虚拟香烟：缓缓上升的烟雾 ---------- */
+  .smoke-puff {
+    position: absolute;
+    bottom: 0;
+    left: 50%;
+    width: 22px;
+    height: 22px;
+    margin-left: -11px;
+    border-radius: 9999px;
+    background: radial-gradient(circle, rgba(230, 168, 184, 0.55), rgba(230, 168, 184, 0) 70%);
+    opacity: 0;
+    animation: smokeRise 3.6s ease-out infinite;
+  }
+  @keyframes smokeRise {
+    0%   { transform: translate(0, 0) scale(0.6); opacity: 0; }
+    20%  { opacity: 0.75; }
+    100% { transform: translate(-14px, -64px) scale(1.6); opacity: 0; }
+  }
+
+  /* 燃烧端的火光，像呼吸一样明暗 */
+  @keyframes emberGlow {
+    0%, 100% { box-shadow: 0 0 10px 3px rgba(255, 150, 130, 0.45); }
+    50%      { box-shadow: 0 0 20px 8px rgba(255, 150, 130, 0.80); }
+  }
+  .ember-hot { animation: emberGlow 1.6s ease-in-out infinite; }
+
+  /* 呼吸练习的光晕：缩放由 JS 控制，这里保证过渡平滑 */
+  #breathRing { transition: transform 4s ease-in-out; will-change: transform; }
+
+  /* 尊重系统「减少动态效果」的设置 */
+  @media (prefers-reduced-motion: reduce) {
+    .float-in { animation: none; }
+    .smoke-puff { display: none; }
+    .blob { animation: none; }
+    * { transition-duration: 0.01ms !important; }
+  }
+</style>
+</head>
+
+<body class="min-h-screen bg-blush-50 font-sans text-blush-900">
+
+  <!-- 背景装饰：三层缓慢漂浮的粉色光斑，纯装饰不拦截点击 -->
+  <div class="pointer-events-none fixed inset-0 -z-10 overflow-hidden" aria-hidden="true">
+    <span class="blob blob-1"></span>
+    <span class="blob blob-2"></span>
+    <span class="blob blob-3"></span>
+  </div>
+
+  <main class="mx-auto w-full max-w-3xl px-5 pb-12 pt-8 sm:pt-12">
+
+    <!-- ========== 首屏标题（紧凑） ========== -->
+    <header class="text-center float-in">
+      <span class="inline-block rounded-full bg-white/70 px-4 py-1 text-xs tracking-[0.25em] text-blush-500 ring-1 ring-blush-100">
+        温柔戒烟 · 陪你一起
+      </span>
+      <h1 class="mt-4 text-2xl font-semibold leading-relaxed text-blush-900 sm:text-[32px]">
+        每多坚持一秒，<span class="text-blush-500">身体都在变好</span>
+      </h1>
+      <p class="mx-auto mt-3 max-w-md text-sm leading-6 text-blush-600">
+        不急，也不用完美。今天愿意为自己少抽一支，就已经很了不起。
+      </p>
+    </header>
+
+    <!-- ========== 励志语录（细长条，紧随标题） ========== -->
+    <section class="mt-6 float-in">
+      <div class="flex items-center gap-3 rounded-2xl bg-white/70 px-4 py-3 ring-1 ring-blush-100 backdrop-blur-sm">
+        <span class="select-none text-lg leading-none text-blush-300">“</span>
+        <!-- 语录文字，JS 随机替换 -->
+        <p id="quoteText" class="min-w-0 flex-1 text-sm leading-6 text-blush-700 transition-all duration-300"></p>
+        <!-- 换一句：悬停时轻轻旋转 -->
+        <button
+          id="quoteBtn"
+          title="换一句"
+          class="shrink-0 rounded-full bg-white p-2 text-blush-400 shadow-sm ring-1 ring-blush-100 transition duration-500 hover:rotate-180 hover:text-blush-600"
+        >
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 12a9 9 0 1 1-2.64-6.36"></path>
+            <path d="M21 3v6h-6"></path>
+          </svg>
+        </button>
+      </div>
+    </section>
+
+    <!-- ========== 开始设置区（未开始时显示） ========== -->
+    <section id="setupSection" class="mt-6 rounded-3xl bg-white p-5 shadow-soft ring-1 ring-blush-100 sm:p-7">
+      <h2 class="text-base font-medium text-blush-900">从这一刻开始</h2>
+      <p class="mt-1.5 text-sm leading-6 text-blush-600">选一个开始的时间，剩下的交给时间，也交给你自己。</p>
+
+      <label for="startInput" class="mt-4 block text-sm font-medium text-blush-700">戒烟开始时间</label>
+      <input
+        id="startInput"
+        type="datetime-local"
+        class="mt-2 w-full rounded-2xl border border-blush-200 bg-blush-50/60 px-4 py-2.5 text-blush-900 outline-none transition duration-300 focus:border-blush-400 focus:bg-white focus:ring-4 focus:ring-blush-100"
+      >
+      <!-- 校验提示，默认隐藏 -->
+      <p id="setupTip" class="mt-2 hidden text-sm text-rose-500"></p>
+
+      <button
+        id="startBtn"
+        class="mt-4 w-full rounded-2xl bg-blush-500 py-3 font-medium text-white shadow-soft transition duration-300 hover:-translate-y-0.5 hover:bg-blush-600 active:scale-[0.99]"
+      >
+        开始我的旅程
+      </button>
+    </section>
+
+    <!-- ========== 计时器（开始后显示） ========== -->
+    <section id="timerSection" class="mt-6 hidden rounded-3xl bg-white p-5 text-center shadow-soft ring-1 ring-blush-100 sm:p-6">
+      <p class="text-sm text-blush-500">你已经坚持了</p>
+
+      <!-- 天 / 小时 / 分钟 / 秒 四块数字 -->
+      <div class="mt-3 grid grid-cols-4 gap-2 sm:gap-3">
+        <div class="rounded-2xl bg-blush-50 py-3">
+          <div id="daysVal" class="num text-2xl font-semibold text-blush-700 sm:text-3xl">0</div>
+          <div class="mt-0.5 text-xs text-blush-500">天</div>
+        </div>
+        <div class="rounded-2xl bg-blush-50 py-3">
+          <div id="hoursVal" class="num text-2xl font-semibold text-blush-700 sm:text-3xl">0</div>
+          <div class="mt-0.5 text-xs text-blush-500">小时</div>
+        </div>
+        <div class="rounded-2xl bg-blush-50 py-3">
+          <div id="minutesVal" class="num text-2xl font-semibold text-blush-700 sm:text-3xl">0</div>
+          <div class="mt-0.5 text-xs text-blush-500">分钟</div>
+        </div>
+        <div class="rounded-2xl bg-blush-50 py-3">
+          <div id="secondsVal" class="num text-2xl font-semibold text-blush-500 sm:text-3xl">0</div>
+          <div class="mt-0.5 text-xs text-blush-500">秒</div>
+        </div>
+      </div>
+
+      <p class="mt-3 text-xs text-blush-500">每一秒，身体都在悄悄修复。</p>
+
+      <button
+        id="resetBtn"
+        class="mt-4 rounded-full border border-blush-200 px-4 py-1.5 text-xs text-blush-600 transition duration-300 hover:border-blush-300 hover:bg-blush-50"
+      >
+        重新开始
+      </button>
+    </section>
+
+    <!-- ========== 数据统计（开始后显示） ========== -->
+    <section id="statsSection" class="mt-4 hidden space-y-3">
+
+      <!-- 香烟数 + 金钱 -->
+      <div class="grid grid-cols-2 gap-3">
+        <div class="float-in rounded-3xl bg-white p-4 shadow-soft ring-1 ring-blush-100">
+          <p class="text-xs text-blush-500">已经远离的香烟</p>
+          <p class="mt-2">
+            <span id="cigsVal" class="num text-2xl font-semibold text-blush-700">0</span>
+            <span class="ml-1 text-xs text-blush-500">支</span>
+          </p>
+        </div>
+        <div class="float-in rounded-3xl bg-white p-4 shadow-soft ring-1 ring-blush-100" style="animation-delay: 0.1s">
+          <p class="text-xs text-blush-500">省下的金钱</p>
+          <p class="mt-2">
+            <span class="text-xs text-blush-500">¥</span>
+            <span id="moneyVal" class="num ml-1 text-2xl font-semibold text-blush-700">0.0</span>
+          </p>
+        </div>
+      </div>
+
+      <!-- 肺部恢复进度 + 成果入口 -->
+      <div class="float-in rounded-3xl bg-white p-4 shadow-soft ring-1 ring-blush-100" style="animation-delay: 0.2s">
+        <div class="flex items-end justify-between">
+          <p class="text-xs text-blush-500">肺部恢复进度</p>
+          <p>
+            <span id="lungPct" class="num text-lg font-semibold text-blush-600">0</span>
+            <span class="text-xs text-blush-500">%</span>
+          </p>
+        </div>
+        <!-- 进度条：宽度由 JS 控制 -->
+        <div class="mt-2.5 h-2.5 w-full overflow-hidden rounded-full bg-blush-100">
+          <div id="lungBar" class="h-full w-0 rounded-full bg-gradient-to-r from-blush-300 to-blush-500 transition-all duration-1000 ease-out"></div>
+        </div>
+        <div class="mt-3 flex items-center justify-between gap-3">
+          <p class="text-[11px] leading-4 text-blush-400">以一年为期估算，修复缓慢但一直在发生。</p>
+          <button
+            id="openResultBtn"
+            class="shrink-0 rounded-full border border-blush-200 px-3 py-1 text-xs text-blush-600 transition duration-300 hover:bg-blush-50"
+          >
+            查看成果
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ========== 虚拟香烟 ========== -->
+    <section class="mt-6">
+      <h2 class="text-base font-medium text-blush-900">虚拟香烟</h2>
+      <p class="mt-1 text-xs leading-5 text-blush-500">想抽的时候，就点它一口。看着它变短，真实的你，什么都没吸进去。</p>
+
+      <div class="relative mt-3 overflow-hidden rounded-3xl bg-white p-5 shadow-soft ring-1 ring-blush-100 sm:p-6">
+
+        <!-- 香烟舞台 -->
+        <div class="relative mx-auto flex h-36 w-full items-center justify-center">
+          <!-- 香烟本体：整体宽度由 JS 控制，燃烧时越来越短 -->
+          <div id="cigWrap" class="relative flex h-5 max-w-full items-stretch shadow-sm" style="width: 240px">
+
+            <!-- 烟雾：跟着烟头走，燃烧时淡入 -->
+            <div id="smokeWrap" class="pointer-events-none absolute -top-16 right-0 h-16 w-14 opacity-0 transition-opacity duration-700">
+              <span class="smoke-puff"></span>
+              <span class="smoke-puff" style="animation-delay: 1.2s"></span>
+              <span class="smoke-puff" style="animation-delay: 2.4s"></span>
+            </div>
+
+            <!-- 滤嘴：固定宽度 -->
+            <div class="h-full w-14 shrink-0 rounded-l-md bg-[#EDD6CE] ring-1 ring-inset ring-[#DFC4BB]"></div>
+
+            <!-- 烟身：弹性宽度，会越来越短 -->
+            <div class="relative h-full flex-1 rounded-r-sm bg-white ring-1 ring-inset ring-[#E6D8D4]">
+              <!-- 燃烧端的烟灰 -->
+              <span class="absolute -right-1 top-0 h-full w-2 rounded-r-sm bg-[#DDD3CF]"></span>
+              <!-- 火光 -->
+              <span id="ember" class="absolute -right-1.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 rounded-full bg-[#FF8F73] shadow-[0_0_12px_4px_rgba(255,143,115,0.55)]"></span>
+            </div>
+          </div>
+        </div>
+
+        <!-- 控制区：点一口 / 暂停 / 重燃 -->
+        <div class="text-center">
+          <div class="flex flex-wrap items-center justify-center gap-2.5">
+            <button
+              id="puffBtn"
+              class="rounded-2xl bg-blush-500 px-6 py-2.5 text-sm font-medium text-white shadow-soft transition duration-300 hover:-translate-y-0.5 hover:bg-blush-600 active:scale-[0.98] disabled:translate-y-0 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              点一口
+            </button>
+            <button
+              id="pauseBtn"
+              class="rounded-2xl border border-blush-200 bg-white px-4 py-2.5 text-sm text-blush-600 transition duration-300 hover:bg-blush-50 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              暂停
+            </button>
+            <button
+              id="resumeBtn"
+              class="rounded-2xl border border-blush-200 bg-white px-4 py-2.5 text-sm text-blush-600 transition duration-300 hover:bg-blush-50 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              重燃
+            </button>
+          </div>
+          <p id="puffTip" class="mt-2.5 text-xs leading-5 text-blush-400">点一口，让冲动慢慢散掉。</p>
+        </div>
+
+        <!-- 兜底提示：给「越点越想抽」的人一个出口 -->
+        <p class="mt-4 border-t border-blush-100 pt-3 text-center text-[11px] leading-5 text-blush-400">
+          如果点着点着反而更想抽，就关掉它，去喝口水、走两步。
+        </p>
+
+        <!-- 确认层：先看一句鼓励，再由你决定要不要点 -->
+        <div id="puffConfirm" class="absolute inset-0 z-10 hidden items-center justify-center bg-white/85 px-6 backdrop-blur-sm">
+          <div class="w-full max-w-xs text-center">
+            <p class="text-xs tracking-[0.25em] text-blush-400">先看看这句话</p>
+            <p id="puffQuote" class="mt-3 text-sm leading-7 text-blush-700"></p>
+            <div class="mt-5 flex gap-3">
+              <button id="puffCancel" class="flex-1 rounded-2xl border border-blush-200 py-2.5 text-sm text-blush-600 transition duration-300 hover:bg-blush-50">
+                再等等
+              </button>
+              <button id="puffGo" class="flex-1 rounded-2xl bg-blush-500 py-2.5 text-sm text-white transition duration-300 hover:bg-blush-600">
+                点这一口
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ========== 身体变化 + 徽章（并排，压缩长度） ========== -->
+    <div class="mt-6 grid gap-3 sm:grid-cols-2">
+
+      <!-- 身体恢复时间线 -->
+      <section class="rounded-3xl bg-white p-5 shadow-soft ring-1 ring-blush-100">
+        <h2 class="text-base font-medium text-blush-900">身体的变化</h2>
+        <p class="mt-1 text-xs text-blush-500">每个节点，都是身体回你的信。</p>
+        <!-- 内容由 JS 生成 -->
+        <div id="timeline" class="mt-4"></div>
+        <!-- 未开始时的空状态提示 -->
+        <p id="timelineHint" class="mt-3 text-xs leading-5 text-blush-400">开始记录之后，这些节点会一个个亮起来。</p>
+      </section>
+
+      <!-- 成就徽章墙 -->
+      <section class="rounded-3xl bg-white p-5 shadow-soft ring-1 ring-blush-100">
+        <h2 class="text-base font-medium text-blush-900">成就徽章</h2>
+        <p class="mt-1 text-xs text-blush-500">每一枚，都是照顾自己的证明。</p>
+        <!-- 徽章由 JS 生成 -->
+        <div id="badgeGrid" class="mt-4 grid grid-cols-2 gap-2.5"></div>
+        <!-- 未开始时的空状态提示 -->
+        <p id="badgeHint" class="mt-3 text-xs leading-5 text-blush-400">第一枚徽章，从坚持 1 天开始。</p>
+      </section>
+    </div>
+
+    <!-- ========== 烟瘾急救 ========== -->
+    <section class="mt-6">
+      <h2 class="text-base font-medium text-blush-900">烟瘾来了，试试这样</h2>
+      <p class="mt-1 text-xs text-blush-500">那股冲动通常只停留几分钟，做点别的，它自己会走。</p>
+
+      <div class="mt-3 grid gap-2.5 sm:grid-cols-3">
+        <!-- 深呼吸 -->
+        <div class="rounded-2xl bg-white p-4 text-center shadow-soft ring-1 ring-blush-100 transition duration-500 hover:-translate-y-1 hover:shadow-lg">
+          <div class="mx-auto flex h-10 w-10 items-center justify-center rounded-xl bg-blush-50 text-xl">🌬️</div>
+          <p class="mt-3 text-sm font-medium text-blush-800">深呼吸</p>
+          <p class="mt-1 text-xs leading-5 text-blush-500">吸气 4 秒，停 4 秒，呼 6 秒。</p>
+        </div>
+        <!-- 喝水 -->
+        <div class="rounded-2xl bg-white p-4 text-center shadow-soft ring-1 ring-blush-100 transition duration-500 hover:-translate-y-1 hover:shadow-lg">
+          <div class="mx-auto flex h-10 w-10 items-center justify-center rounded-xl bg-blush-50 text-xl">💧</div>
+          <p class="mt-3 text-sm font-medium text-blush-800">喝口水</p>
+          <p class="mt-1 text-xs leading-5 text-blush-500">小口慢慢喝，让身体忙起来。</p>
+        </div>
+        <!-- 走动 -->
+        <div class="rounded-2xl bg-white p-4 text-center shadow-soft ring-1 ring-blush-100 transition duration-500 hover:-translate-y-1 hover:shadow-lg">
+          <div class="mx-auto flex h-10 w-10 items-center justify-center rounded-xl bg-blush-50 text-xl">🚶</div>
+          <p class="mt-3 text-sm font-medium text-blush-800">走一走</p>
+          <p class="mt-1 text-xs leading-5 text-blush-500">起身活动三五分钟，换个场景。</p>
+        </div>
+      </div>
+
+      <!-- 4-7-8 呼吸练习：横向排布，省高度 -->
+      <div class="mt-3 rounded-3xl bg-white p-5 shadow-soft ring-1 ring-blush-100">
+        <div class="flex flex-col items-center gap-5 sm:flex-row sm:gap-7">
+
+          <!-- 左：随呼吸缩放的圆 -->
+          <div class="relative flex h-36 w-36 shrink-0 items-center justify-center">
+            <div id="breathRing" class="absolute inset-0 rounded-full bg-blush-100/80"></div>
+            <div class="relative flex h-24 w-24 flex-col items-center justify-center rounded-full bg-white shadow-soft ring-1 ring-blush-100">
+              <p id="breathPhase" class="text-xs font-medium text-blush-700">准备</p>
+              <p id="breathCount" class="num mt-0.5 text-xl font-semibold text-blush-600">4</p>
+            </div>
+          </div>
+
+          <!-- 右：文案与按钮 -->
+          <div class="text-center sm:text-left">
+            <p class="text-sm font-medium text-blush-800">4-7-8 呼吸练习</p>
+            <p class="mt-1 text-xs leading-5 text-blush-500">吸气 4 秒，屏息 7 秒，呼气 8 秒，重复 4 轮。跟着圆圈，慢慢来。</p>
+            <button
+              id="breathBtn"
+              data-running="0"
+              class="mt-3 rounded-2xl bg-blush-500 px-5 py-2.5 text-sm font-medium text-white shadow-soft transition duration-300 hover:-translate-y-0.5 hover:bg-blush-600 active:scale-[0.99]"
+            >
+              开始练习
+            </button>
+            <p id="breathTip" class="mt-2 text-xs text-blush-400">准备好了就开始。</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ========== 数据管理：备份与恢复 ========== -->
+    <section class="mt-8 rounded-2xl border border-blush-100 bg-white/70 p-4">
+      <div class="flex flex-col items-center justify-between gap-3 sm:flex-row sm:items-center">
+        <div class="text-center sm:text-left">
+          <p class="text-xs font-medium text-blush-700">记录只存在这台设备上</p>
+          <p class="mt-0.5 text-[11px] leading-5 text-blush-400">换浏览器或清缓存会丢失，建议隔一段时间导出一份备份。</p>
+        </div>
+        <div class="flex shrink-0 gap-2">
+          <button
+            id="exportBtn"
+            class="rounded-full border border-blush-200 bg-white px-4 py-1.5 text-xs text-blush-600 transition duration-300 hover:bg-blush-50"
+          >
+            导出备份
+          </button>
+          <button
+            id="importBtn"
+            class="rounded-full border border-blush-200 bg-white px-4 py-1.5 text-xs text-blush-600 transition duration-300 hover:bg-blush-50"
+          >
+            导入
+          </button>
+          <!-- 隐藏的文件选择器，点「导入」时触发 -->
+          <input id="importFile" type="file" accept="application/json,.json" class="hidden">
+        </div>
+      </div>
+    </section>
+
+    <!-- ========== 底部文案 + 免责声明 ========== -->
+    <footer class="mt-10 text-center">
+      <p class="text-sm leading-6 text-blush-500">无论今天是第几天，你都值得被温柔对待。</p>
+      <p class="mt-1 text-xs text-blush-400">愿你和身体，慢慢和解。</p>
+
+      <!-- 健康相关说明，对外分享时请保留 -->
+      <p class="mx-auto mt-6 max-w-md text-[11px] leading-5 text-blush-500">
+        页面中的时间线、恢复进度、省钱与支数均为按个人习惯估算的参考值，不构成任何医疗建议。
+        戒烟过程中如出现不适或需要帮助，请咨询专业医生。
+      </p>
+
+      <!-- 署名与使用限制 -->
+      <p class="mx-auto mt-4 max-w-md border-t border-blush-100 pt-3 text-[11px] leading-5 text-blush-600">
+        由「小拜学AI」生成 · 仅供个人学习与自用，不得商用
+      </p>
+    </footer>
+  </main>
+
+  <!-- ========== 徽章解锁提示（顶部淡入的小卡片） ========== -->
+  <div class="pointer-events-none fixed inset-x-0 top-6 z-50 flex justify-center px-4">
+    <div id="toastInner" class="flex translate-y-3 items-center gap-3 rounded-2xl bg-white px-5 py-3.5 opacity-0 shadow-[0_18px_44px_-14px_rgba(190,120,140,0.45)] ring-1 ring-blush-100 transition-all duration-500">
+      <span id="toastEmoji" class="text-2xl">🌱</span>
+      <div>
+        <p id="toastTitle" class="text-sm font-medium text-blush-700">解锁成就</p>
+        <p id="toastText" class="mt-0.5 text-xs text-blush-500"></p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========== 重置确认弹窗 ========== -->
+  <div id="confirmModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-blush-900/15 px-5 backdrop-blur-sm">
+    <div class="float-in w-full max-w-sm rounded-3xl bg-white p-6 shadow-soft">
+      <h3 class="text-base font-medium text-blush-900">要重新开始吗？</h3>
+      <p class="mt-2 text-sm leading-6 text-blush-500">当前的坚持记录会被清空。没关系，随时都可以再出发。</p>
+      <div class="mt-6 flex gap-3">
+        <button id="cancelReset" class="flex-1 rounded-2xl border border-blush-200 py-2.5 text-sm text-blush-600 transition duration-300 hover:bg-blush-50">
+          再想想
+        </button>
+        <button id="confirmReset" class="flex-1 rounded-2xl bg-blush-500 py-2.5 text-sm text-white transition duration-300 hover:bg-blush-600">
+          重新开始
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========== 抽烟习惯问卷（开始前弹出） ========== -->
+  <div id="habitModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-blush-900/15 px-5 backdrop-blur-sm">
+    <div class="float-in w-full max-w-sm rounded-3xl bg-white p-6 shadow-soft">
+      <h3 class="text-base font-medium text-blush-900">先了解一下你的习惯</h3>
+      <p class="mt-2 text-sm leading-6 text-blush-500">
+        填一下以前的情况，我帮你算出「本该抽掉、却没有抽」的支数和钱。
+        之后再调整，只影响之后的计算，历史记录不会变。
+      </p>
+
+      <div class="mt-5 space-y-4">
+        <label class="block">
+          <span class="text-sm text-blush-700">以前每天抽多少根</span>
+          <input id="habitDaily" type="number" min="1" max="200" step="1" value="20"
+            class="mt-1.5 w-full rounded-2xl border border-blush-200 bg-blush-50/60 px-4 py-2.5 text-blush-900 outline-none transition duration-300 focus:border-blush-400 focus:bg-white focus:ring-4 focus:ring-blush-100">
+        </label>
+        <div class="grid grid-cols-2 gap-3">
+          <label class="block">
+            <span class="text-sm text-blush-700">一包多少钱</span>
+            <input id="habitPrice" type="number" min="0" step="0.1" value="22"
+              class="mt-1.5 w-full rounded-2xl border border-blush-200 bg-blush-50/60 px-4 py-2.5 text-blush-900 outline-none transition duration-300 focus:border-blush-400 focus:bg-white focus:ring-4 focus:ring-blush-100">
+          </label>
+          <label class="block">
+            <span class="text-sm text-blush-700">一包多少根</span>
+            <input id="habitPerPack" type="number" min="1" max="100" step="1" value="20"
+              class="mt-1.5 w-full rounded-2xl border border-blush-200 bg-blush-50/60 px-4 py-2.5 text-blush-900 outline-none transition duration-300 focus:border-blush-400 focus:bg-white focus:ring-4 focus:ring-blush-100">
+          </label>
+        </div>
+      </div>
+
+      <p id="habitTip" class="mt-3 hidden text-sm text-rose-500"></p>
+
+      <div class="mt-6 flex gap-3">
+        <button id="habitCancel" class="flex-1 rounded-2xl border border-blush-200 py-2.5 text-sm text-blush-600 transition duration-300 hover:bg-blush-50">
+          再想想
+        </button>
+        <button id="habitConfirm" class="flex-1 rounded-2xl bg-blush-500 py-2.5 text-sm text-white transition duration-300 hover:bg-blush-600">
+          开始计时
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========== 「我的成果」窗口 ========== -->
+  <div id="resultModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-blush-900/15 px-5 backdrop-blur-sm">
+    <div class="float-in w-full max-w-sm rounded-3xl bg-white p-6 shadow-soft">
+      <p class="text-xs tracking-[0.25em] text-blush-400">我的成果</p>
+      <h3 class="mt-2 text-lg font-medium leading-7 text-blush-900">按你的习惯，这些都已经留在身后</h3>
+
+      <!-- 两个核心数字 -->
+      <div class="mt-5 grid grid-cols-2 gap-3">
+        <div class="rounded-2xl bg-blush-50 p-4 text-center">
+          <p id="resultCigs" class="num text-2xl font-semibold text-blush-700">0</p>
+          <p class="mt-1 text-xs text-blush-500">已远离（支）</p>
+        </div>
+        <div class="rounded-2xl bg-blush-50 p-4 text-center">
+          <p>
+            <span class="text-sm text-blush-500">¥</span>
+            <span id="resultMoney" class="num text-2xl font-semibold text-blush-700">0.0</span>
+          </p>
+          <p class="mt-1 text-xs text-blush-500">省下的钱</p>
+        </div>
+      </div>
+
+      <!-- 算法说明：让用户清楚数字是怎么来的 -->
+      <p id="resultDesc" class="mt-4 text-sm leading-6 text-blush-500"></p>
+
+      <div class="mt-6 flex gap-3">
+        <button id="resultHabit" class="flex-1 rounded-2xl border border-blush-200 py-2.5 text-sm text-blush-600 transition duration-300 hover:bg-blush-50">
+          调整习惯
+        </button>
+        <button id="resultClose" class="flex-1 rounded-2xl bg-blush-500 py-2.5 text-sm text-white transition duration-300 hover:bg-blush-600">
+          知道了
+        </button>
+      </div>
+    </div>
+  </div>
+
+<script>
+
+/* ============================================================
+   一、可修改参数（想调就改这里）
+   ============================================================ */
+
+// 单包烟价格（元）—— 仅作为默认值，用户在问卷里填过就以用户的为准
+const PACK_PRICE = 22;
+
+// 一包有多少根 —— 同上，仅默认值
+const CIGS_PER_PACK = 20;
+
+// 戒烟前平均每天抽多少根 —— 同上，仅默认值
+const DAILY_CIGS = 20;
+
+// 默认习惯对象：没填过问卷时用它兜底
+const DEFAULT_HABIT = {
+  dailyCigs: DAILY_CIGS,
+  packPrice: PACK_PRICE,
+  cigsPerPack: CIGS_PER_PACK
+};
+
+/* ============================================================
+   二、常量与小工具
+   ============================================================ */
+
+// localStorage 的键名
+const KEY_START = 'quit_smoking_start_time';      // 存戒烟起始时间戳
+const KEY_BADGES = 'quit_smoking_unlocked_badges'; // 存已提示过的徽章（防重复弹窗）
+const KEY_HABIT = 'quit_smoking_habit';            // 存用户的抽烟习惯（当前生效的）
+const KEY_HABIT_HISTORY = 'quit_smoking_habit_history'; // 存习惯变更历史，用于分段计算
+
+// 时间换算
+const MINUTE = 60 * 1000;
+const HOUR = 60 * MINUTE;
+const DAY = 24 * HOUR;
+
+// 身体恢复时间线：minutes 是达成该节点所需的「分钟数」
+const MILESTONES = [
+  { minutes: 20,               title: '20 分钟', desc: '心率和血压开始回落，身体慢慢松下来。' },
+  { minutes: 24 * 60,          title: '24 小时', desc: '血液里的一氧化碳基本排出，氧气运送更顺畅。' },
+  { minutes: 72 * 60,          title: '72 小时', desc: '支气管逐渐放松，呼吸变得轻松一些。' },
+  { minutes: 30 * 24 * 60,     title: '1 个月',  desc: '肺功能在稳步提升，咳嗽和气短慢慢减少。' },
+  { minutes: 365 * 24 * 60,    title: '1 年',    desc: '心血管状态更稳定，整个人都轻快起来。' }
+];
+
+// 成就徽章：days 是解锁所需天数
+const BADGES = [
+  { days: 1,   name: '启程', emoji: '🌱', desc: '坚持 1 天' },
+  { days: 7,   name: '一周', emoji: '🌿', desc: '坚持 7 天' },
+  { days: 30,  name: '满月', emoji: '🍃', desc: '坚持 30 天' },
+  { days: 100, name: '百日', emoji: '🌳', desc: '坚持 100 天' }
+];
+
+// 励志语录（全部是鼓励向，不做恐吓）
+const QUOTES = [
+  '你不需要完美，只需要继续。',
+  '每一次想抽烟的时刻，都是身体在重建自己。',
+  '慢一点没关系，只要别停下来。',
+  '今天的你，比昨天又自由了一点。',
+  '烟瘾只是一阵风，它会过去的。',
+  '你已经在变好的路上了。',
+  '坚持不是硬扛，是一次次温柔地选择自己。',
+  '你的肺，正在悄悄感谢你。',
+  '不必和谁比，你只和昨天的自己比。',
+  '能走到这里的你，已经很棒了。'
+];
+
+// 获取元素的简写
+const $ = (id) => document.getElementById(id);
+
+// 等待若干毫秒（配合 async/await 使用）
+function wait(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/* ============================================================
+   三、状态变量
+   ============================================================ */
+
+let startTime = null;        // 戒烟起始时间戳（毫秒），null 表示还没开始
+let timerId = null;          // setInterval 的句柄，方便清除
+let unlockedBadges = [];     // 已经弹过提示的徽章（存天数）
+let timelineSignature = '';  // 记录时间线上次达成的数量，避免每秒重建 DOM
+let lastQuoteIndex = -1;     // 上一条语录的索引，避免连续重复
+
+// 用户的抽烟习惯（问卷填写后覆盖默认值）
+let habit = { ...DEFAULT_HABIT };
+
+// 习惯变更历史：[{ at: 生效时间戳, dailyCigs, packPrice, cigsPerPack }, ...]
+// 按 at 升序；计算时按区间累加，改习惯不会影响已有历史
+let habitHistory = [];
+
+// 问卷确认前，暂时保存的起始时间；为 null 表示这次问卷不是「开始戒烟」触发的
+let pendingStartTime = null;
+
+// 徽章弹窗队列相关
+const toastQueue = [];
+let toastRunning = false;
+
+/* ============================================================
+   四、时间与格式化
+   ============================================================ */
+
+// Date 对象 → datetime-local 输入框需要的 "YYYY-MM-DDTHH:mm"
+function toLocalInputValue(date) {
+  const pad = (n) => String(n).padStart(2, '0');
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
+// "YYYY-MM-DDTHH:mm" → 时间戳，按本地时区解析（避免浏览器差异）
+function parseLocalDatetime(value) {
+  const [datePart, timePart] = value.split('T');
+  const [y, m, d] = datePart.split('-').map(Number);
+  const [hh, mm] = timePart.split(':').map(Number);
+  return new Date(y, m - 1, d, hh, mm).getTime();
+}
+
+// 已经过去了多少毫秒（未开始时为 0）
+function getElapsedMs() {
+  if (!startTime) return 0;
+  return Math.max(0, Date.now() - startTime);
+}
+
+// 肺部恢复进度：用对数曲线，前期涨得快，一年接近 100%
+function getLungProgress(totalMinutes) {
+  if (totalMinutes <= 0) return 0;
+  const daysElapsed = totalMinutes / (24 * 60);
+  const raw = Math.log(1 + daysElapsed) / Math.log(1 + 365);
+  return Math.min(100, Math.round(raw * 100));
+}
+
+/**
+ * 按「习惯变更历史」分段计算已远离支数与省下的钱。
+ * 每段只覆盖它生效的时间区间，所以调整习惯不会重算过去。
+ * @param {number} endMs 计算到哪个时间点（一般传 Date.now()）
+ */
+function calcTotals(endMs) {
+  if (!startTime || habitHistory.length === 0) return { cigs: 0, money: 0 };
+
+  let cigs = 0;
+  let money = 0;
+
+  for (let i = 0; i < habitHistory.length; i++) {
+    // 第一段从戒烟起点算；之后每段从自己的生效时间算
+    const segStart = i === 0 ? startTime : Math.max(startTime, habitHistory[i].at);
+    const segEnd = i + 1 < habitHistory.length
+      ? Math.min(endMs, habitHistory[i + 1].at)
+      : endMs;
+
+    if (segEnd <= segStart) continue;
+
+    const days = (segEnd - segStart) / DAY;
+    const h = habitHistory[i];
+    cigs += days * h.dailyCigs;
+    money += days * h.dailyCigs * (h.packPrice / h.cigsPerPack);
+  }
+
+  return { cigs, money };
+}
+
+/* ============================================================
+   五、数字滚动动画
+   ============================================================ */
+
+/**
+ * 让元素里的数字从当前值平滑滚到目标值
+ * @param {HTMLElement} el   目标元素
+ * @param {number} target    目标数字
+ * @param {number} decimals  保留几位小数（0 表示整数）
+ */
+function tweenNumber(el, target, decimals = 0) {
+  const from = parseFloat(el.dataset.value) || 0;
+
+  // 差距很小就直接落定，省掉无意义的动画
+  if (Math.abs(from - target) < (decimals ? 0.05 : 0.5)) {
+    el.dataset.value = target;
+    el.textContent = decimals ? target.toFixed(decimals) : Math.round(target);
+    return;
+  }
+
+  const duration = 600; // 数字滚动时长（毫秒）
+  let startAt = null;   // 用 rAF 自己的时间戳做基准，两者同源才不会算错
+  let finished = false; // 防止 rAF 与兜底定时器重复落定
+
+  function finish() {
+    if (finished) return;
+    finished = true;
+    el.dataset.value = target;
+    el.textContent = decimals ? target.toFixed(decimals) : Math.round(target);
+  }
+
+  function frame(now) {
+    if (finished) return;
+
+    // 首帧把当前时间记为起点
+    if (startAt === null) startAt = now;
+
+    // 夹在 0~1：避免任何时间戳异常导致缓动外推出负数
+    const progress = Math.max(0, Math.min(1, (now - startAt) / duration));
+    if (progress >= 1) {
+      finish();
+      return;
+    }
+
+    const eased = 1 - Math.pow(1 - progress, 3); // easeOutCubic，先快后慢
+    const value = from + (target - from) * eased;
+    el.textContent = decimals ? value.toFixed(decimals) : Math.round(value);
+
+    requestAnimationFrame(frame);
+  }
+
+  requestAnimationFrame(frame);
+
+  // 兜底：标签页切到后台时 rAF 会被暂停，这里保证到时也能落到准确数值
+  setTimeout(finish, duration + 120);
+}
+
+/* ============================================================
+   六、渲染：计时器 + 统计 + 时间线 + 徽章
+   ============================================================ */
+
+// 主渲染函数，每秒被调用一次
+function render() {
+  const ms = getElapsedMs();
+  const totalMinutes = Math.floor(ms / MINUTE);
+
+  // ---- 计时器：天 / 小时 / 分钟 / 秒 ----
+  const days = Math.floor(totalMinutes / (24 * 60));
+  const hours = Math.floor((totalMinutes % (24 * 60)) / 60);
+  const minutes = totalMinutes % 60;
+  const seconds = Math.floor((ms % MINUTE) / 1000); // 秒数不需要补间，直接跳
+
+  tweenNumber($('daysVal'), days);
+  tweenNumber($('hoursVal'), hours);
+  tweenNumber($('minutesVal'), minutes);
+  $('secondsVal').textContent = seconds;
+
+  // ---- 统计：按习惯历史分段累加，所以调整习惯不会重算过去 ----
+  const totals = calcTotals(Date.now());
+  tweenNumber($('cigsVal'), Math.floor(totals.cigs));
+  tweenNumber($('moneyVal'), totals.money, 1);
+
+  // ---- 肺部恢复进度 ----
+  const lungPct = getLungProgress(totalMinutes);
+  tweenNumber($('lungPct'), lungPct);
+  $('lungBar').style.width = lungPct + '%';
+
+  // ---- 时间线 & 徽章 ----
+  renderTimeline(totalMinutes);
+  checkBadges(days);
+
+  // 成果窗口开着时，同步刷新里面的数字
+  if (!$('resultModal').classList.contains('hidden')) {
+    updateResultWindow();
+  }
+}
+
+// 构建/更新时间线（只在达成数量变化时重建，避免每秒闪动）
+function renderTimeline(totalMinutes) {
+  const doneCount = MILESTONES.filter((m) => totalMinutes >= m.minutes).length;
+
+  // 达成数量没变就跳过
+  if (timelineSignature === String(doneCount)) return;
+  timelineSignature = String(doneCount);
+
+  $('timeline').innerHTML = MILESTONES.map((m, index) => {
+    const done = index < doneCount;
+    const dotClass = done ? 'bg-blush-500 ring-4 ring-blush-100' : 'bg-blush-200';
+    const titleClass = done ? 'text-blush-700' : 'text-blush-400';
+    const descClass = done ? 'text-blush-600' : 'text-blush-400';
+    // 最后一个节点不画连接线
+    const line = index < MILESTONES.length - 1
+      ? `<span class="mt-1 w-px flex-1 ${done ? 'bg-blush-300' : 'bg-blush-200'}"></span>`
+      : '';
+
+    return `
+      <div class="flex gap-4">
+        <div class="flex flex-col items-center pt-1">
+          <span class="h-3 w-3 shrink-0 rounded-full ${dotClass}"></span>
+          ${line}
+        </div>
+        <div class="pb-5">
+          <p class="text-xs font-medium ${titleClass}">${m.title}${done ? ' · 已达成' : ''}</p>
+          <p class="mt-1 text-xs leading-6 ${descClass}">${m.desc}</p>
+        </div>
+      </div>`;
+  }).join('');
+}
+
+// 生成徽章墙（只生成一次）
+function buildBadges() {
+  $('badgeGrid').innerHTML = BADGES.map((b) => `
+    <div data-badge="${b.days}" class="flex flex-col items-center rounded-3xl bg-white p-4 text-center shadow-soft ring-1 ring-blush-100 transition duration-500">
+      <div class="badge-icon text-2xl opacity-40 grayscale transition duration-500">${b.emoji}</div>
+      <p class="badge-name mt-3 text-xs font-medium text-blush-400 transition duration-500">${b.name}</p>
+      <p class="badge-desc mt-1 text-xs text-blush-300 transition duration-500">${b.desc}</p>
+    </div>`).join('');
+}
+
+// 更新单枚徽章的「已解锁 / 未解锁」样式
+function updateBadgeCard(badge, currentDays) {
+  const card = document.querySelector(`[data-badge="${badge.days}"]`);
+  if (!card) return;
+
+  const unlocked = currentDays >= badge.days;
+  const icon = card.querySelector('.badge-icon');
+  const name = card.querySelector('.badge-name');
+  const desc = card.querySelector('.badge-desc');
+
+  icon.classList.toggle('grayscale', !unlocked);
+  icon.classList.toggle('opacity-40', !unlocked);
+  name.classList.toggle('text-blush-400', !unlocked);
+  name.classList.toggle('text-blush-700', unlocked);
+  desc.classList.toggle('text-blush-300', !unlocked);
+  desc.classList.toggle('text-blush-500', unlocked);
+  card.classList.toggle('ring-blush-200', unlocked);
+  card.classList.toggle('ring-blush-100', !unlocked);
+}
+
+// 检查徽章：更新样式 + 首次达成时弹窗
+function checkBadges(days) {
+  BADGES.forEach((badge) => {
+    updateBadgeCard(badge, days);
+
+    const reached = days >= badge.days;
+    const alreadyNotified = unlockedBadges.includes(badge.days);
+
+    if (reached && !alreadyNotified) {
+      unlockedBadges.push(badge.days);
+      localStorage.setItem(KEY_BADGES, JSON.stringify(unlockedBadges));
+      enqueueToast(badge);
+    }
+  });
+}
+
+/* ============================================================
+   七、徽章解锁弹窗（队列，一个一个淡入淡出）
+   ============================================================ */
+
+function enqueueToast(badge) {
+  toastQueue.push(badge);
+  if (!toastRunning) drainToastQueue();
+}
+
+async function drainToastQueue() {
+  toastRunning = true;
+  const inner = $('toastInner');
+
+  while (toastQueue.length > 0) {
+    const badge = toastQueue.shift();
+
+    $('toastEmoji').textContent = badge.emoji;
+    $('toastTitle').textContent = `解锁成就 · ${badge.name}`;
+    $('toastText').textContent = badge.desc;
+
+    // 淡入
+    inner.classList.remove('opacity-0', 'translate-y-3');
+    await wait(2600);
+
+    // 淡出
+    inner.classList.add('opacity-0', 'translate-y-3');
+    await wait(500);
+  }
+
+  toastRunning = false;
+}
+
+/* ============================================================
+   八、语录
+   ============================================================ */
+
+function renderQuote() {
+  // 随机取一条，且尽量不和上一条重复
+  let index;
+  do {
+    index = Math.floor(Math.random() * QUOTES.length);
+  } while (QUOTES.length > 1 && index === lastQuoteIndex);
+  lastQuoteIndex = index;
+
+  const el = $('quoteText');
+
+  // 先淡出，再换文字，再淡入
+  el.classList.add('opacity-0', 'translate-y-1');
+  setTimeout(() => {
+    el.textContent = QUOTES[index];
+    el.classList.remove('opacity-0', 'translate-y-1');
+  }, 180);
+
+  // 返回这一条的文案，供「虚拟香烟」的确认层复用
+  return QUOTES[index];
+}
+
+/* ============================================================
+   九、界面切换（设置态 / 运行态）
+   ============================================================ */
+
+function showSetup() {
+  // 停掉计时器
+  if (timerId) {
+    clearInterval(timerId);
+    timerId = null;
+  }
+
+  $('setupSection').classList.remove('hidden');
+  $('timerSection').classList.add('hidden');
+  $('statsSection').classList.add('hidden');
+
+  // 回到「还没开始」的空状态：把引导提示露出来
+  $('timelineHint').classList.remove('hidden');
+  $('badgeHint').classList.remove('hidden');
+
+  // 所有数字归零
+  ['daysVal', 'hoursVal', 'minutesVal', 'secondsVal', 'cigsVal', 'moneyVal', 'lungPct'].forEach((id) => {
+    const el = $(id);
+    el.textContent = '0';
+    el.dataset.value = '0';
+  });
+  $('moneyVal').textContent = '0.0';
+  $('lungBar').style.width = '0%';
+
+  // 时间线回到全灰状态
+  timelineSignature = '';
+  renderTimeline(0);
+
+  // 徽章回到未解锁外观
+  checkBadges(0);
+}
+
+function showRunning() {
+  $('setupSection').classList.add('hidden');
+  $('timerSection').classList.remove('hidden');
+  $('statsSection').classList.remove('hidden');
+
+  // 已经开始：空状态提示收起来
+  $('timelineHint').classList.add('hidden');
+  $('badgeHint').classList.add('hidden');
+
+  render(); // 先渲染一次，避免等待 1 秒
+  if (timerId) clearInterval(timerId);
+  timerId = setInterval(render, 1000);
+}
+
+// 重置确认弹窗的显示 / 隐藏
+function toggleConfirm(show) {
+  const modal = $('confirmModal');
+  modal.classList.toggle('hidden', !show);
+  modal.classList.toggle('flex', show);
+}
+
+/* ============================================================
+   十、事件绑定
+   ============================================================ */
+
+function bindEvents() {
+  // 开始戒烟
+  $('startBtn').addEventListener('click', () => {
+    const value = $('startInput').value;
+    const tip = $('setupTip');
+
+    if (!value) {
+      tip.textContent = '请先选择一个开始时间。';
+      tip.classList.remove('hidden');
+      return;
+    }
+
+    const timestamp = parseLocalDatetime(value);
+    if (timestamp > Date.now()) {
+      tip.textContent = '时间不能晚于现在哦，换个更早的时刻吧。';
+      tip.classList.remove('hidden');
+      return;
+    }
+
+    tip.classList.add('hidden');
+
+    // 先记住开始时间，等问卷填完再正式启动（不再直接 showRunning）
+    pendingStartTime = timestamp;
+    openHabitModal();
+  });
+
+  // 换一句语录
+  $('quoteBtn').addEventListener('click', renderQuote);
+
+  // 打开重置确认
+  $('resetBtn').addEventListener('click', () => toggleConfirm(true));
+
+  // 取消重置
+  $('cancelReset').addEventListener('click', () => toggleConfirm(false));
+
+  // 确认重置：清空本地记录，回到设置态
+  $('confirmReset').addEventListener('click', () => {
+    localStorage.removeItem(KEY_START);
+    localStorage.removeItem(KEY_BADGES);
+    localStorage.removeItem(KEY_HABIT_HISTORY);
+
+    startTime = null;
+    unlockedBadges = [];
+    habitHistory = [];   // 分段历史随本次戒烟一起清零，习惯本身保留
+    timelineSignature = '';
+
+    // 若虚拟香烟正在燃烧/暂停，一并停下来
+    stopPuffIfActive();
+
+    toggleConfirm(false);
+    showSetup();
+
+    // 输入框重置为当前时间，方便直接再开始
+    $('startInput').value = toLocalInputValue(new Date());
+  });
+}
+
+/* ============================================================
+   十、4-7-8 呼吸练习（可交互）
+   ============================================================ */
+
+const BREATH_ROUNDS = 4;   // 练几轮
+
+// 三个阶段：吸气 4 秒 → 屏息 7 秒 → 呼气 8 秒
+const BREATH_STEPS = [
+  { label: '吸气', seconds: 4, scale: 1.30, transition: 4 },   // 4 秒内放大
+  { label: '屏息', seconds: 7, scale: 1.30, transition: 0.4 }, // 保持不动
+  { label: '呼气', seconds: 8, scale: 1,    transition: 8 }    // 8 秒内缩回
+];
+
+let breathToken = 0;   // 每次开始/停止都换一个令牌，用来打断旧流程
+
+// 执行单个阶段：设置缩放、逐秒倒计时，结束后 resolve
+function runBreathPhase(step, token) {
+  return new Promise((resolve) => {
+    if (token !== breathToken) return resolve();
+
+    const ring = $('breathRing');
+
+    $('breathPhase').textContent = step.label;
+    ring.style.transitionDuration = step.transition + 's';
+    ring.style.transform = 'scale(' + step.scale + ')';
+
+    let left = step.seconds;
+    $('breathCount').textContent = left;
+
+    const timer = setInterval(() => {
+      // 被停止：清掉定时器并结束
+      if (token !== breathToken) {
+        clearInterval(timer);
+        resolve();
+        return;
+      }
+
+      left -= 1;
+      if (left <= 0) {
+        clearInterval(timer);
+        $('breathCount').textContent = '0';
+        resolve();
+      } else {
+        $('breathCount').textContent = left;
+      }
+    }, 1000);
+  });
+}
+
+async function startBreath() {
+  const token = ++breathToken;   // 新令牌，作废旧流程
+
+  $('breathBtn').textContent = '停下来';
+  $('breathBtn').dataset.running = '1';
+
+  for (let round = 1; round <= BREATH_ROUNDS; round++) {
+    for (const step of BREATH_STEPS) {
+      if (token !== breathToken) return;   // 中途被停止
+      $('breathTip').textContent = '第 ' + round + ' / ' + BREATH_ROUNDS + ' 轮';
+      await runBreathPhase(step, token);
+    }
+  }
+
+  if (token !== breathToken) return;
+  finishBreath();
+}
+
+// 统一恢复界面（停止和完成都用它）
+function resetBreathUI(phaseText, countText, tipText) {
+  const ring = $('breathRing');
+  ring.style.transitionDuration = '1s';
+  ring.style.transform = 'scale(1)';
+
+  $('breathPhase').textContent = phaseText;
+  $('breathCount').textContent = countText;
+  $('breathTip').textContent = tipText;
+
+  const btn = $('breathBtn');
+  btn.textContent = '开始练习';
+  btn.dataset.running = '0';
+}
+
+function stopBreath() {
+  breathToken += 1;   // 令牌失效，进行中的阶段会自动退出
+  resetBreathUI('准备', '4', '跟着圆圈，慢慢来。');
+}
+
+function finishBreath() {
+  resetBreathUI('完成', '✓', '做得很好，身体已经安静下来了。');
+}
+
+/* ============================================================
+   十一、虚拟香烟
+   ============================================================ */
+
+const KEY_PUFF = 'quit_smoking_puff_progress';  // 燃烧进度存储键
+const CIG_FULL_WIDTH = 240;    // 一根完整香烟的总宽度（px）
+const CIG_FILTER_WIDTH = 56;   // 滤嘴固定宽度（px），对应 HTML 里的 w-14
+const BURN_FULL_SECONDS = 180; // 一根烟相当于 180 秒（6 口 × 30 秒）
+const PUFF_SECONDS = 30;       // 每点一口，燃烧 30 秒
+
+let puffProgress = 0;   // 0 ~ 1 的燃烧进度
+
+// 燃烧状态：idle 待机 / burning 燃烧中 / paused 已暂停
+const PUFF_IDLE = 'idle';
+const PUFF_BURNING = 'burning';
+const PUFF_PAUSED = 'paused';
+let puffState = PUFF_IDLE;
+
+// 本次燃烧的计时数据（暂停时停止累加，重燃时从断点继续）
+let burnRAF = null;      // requestAnimationFrame 句柄
+let burnTotal = 0;       // 本次要烧的总毫秒数
+let burnElapsed = 0;     // 已经烧掉的毫秒数
+let burnFrom = 0;        // 起始进度
+let burnTo = 0;          // 目标进度
+let burnLastTs = 0;      // 上一帧的时间戳
+
+// 根据进度计算香烟宽度：滤嘴不变，烟身缩短
+function applyCigProgress() {
+  const remain = Math.max(0, 1 - puffProgress);
+  const width = CIG_FILTER_WIDTH + (CIG_FULL_WIDTH - CIG_FILTER_WIDTH) * remain;
+  $('cigWrap').style.width = width + 'px';
+}
+
+// 保存进度，刷新后香烟还是原来那么短
+function savePuff() {
+  localStorage.setItem(KEY_PUFF, String(puffProgress));
+}
+
+// 显示 / 隐藏「先看一句」确认层
+function togglePuffConfirm(show) {
+  const layer = $('puffConfirm');
+  layer.classList.toggle('hidden', !show);
+  layer.classList.toggle('flex', show);
+}
+
+// 根据当前状态刷新三个按钮的可用性与文案
+function updatePuffButtons() {
+  const puffBtn = $('puffBtn');
+  const pauseBtn = $('pauseBtn');
+  const resumeBtn = $('resumeBtn');
+
+  if (puffState === PUFF_IDLE) {
+    puffBtn.textContent = '点一口';
+    puffBtn.disabled = false;
+  } else {
+    const left = Math.max(0, Math.ceil((burnTotal - burnElapsed) / 1000));
+    puffBtn.textContent = (puffState === PUFF_BURNING ? '燃烧中 · ' : '已暂停 · ') + left + 's';
+    puffBtn.disabled = true;
+  }
+
+  // 只有燃烧中能暂停，只有暂停后能重燃
+  pauseBtn.disabled = puffState !== PUFF_BURNING;
+  resumeBtn.disabled = puffState !== PUFF_PAUSED;
+}
+
+// 点燃：算好本次的进度区间，进入燃烧状态
+function startBurn() {
+  burnFrom = puffProgress;
+  burnTo = Math.min(1, burnFrom + PUFF_SECONDS / BURN_FULL_SECONDS);
+  burnTotal = PUFF_SECONDS * 1000;
+  burnElapsed = 0;
+  burnLastTs = 0;
+  puffState = PUFF_BURNING;
+
+  $('smokeWrap').classList.remove('opacity-0');
+  $('smokeWrap').classList.add('opacity-100');
+  $('ember').classList.add('ember-hot');
+  $('puffTip').textContent = '跟着这缕烟，慢慢呼吸，等它过去。';
+
+  updatePuffButtons();
+  burnRAF = requestAnimationFrame(burnTick);
+}
+
+// 每帧推进：只累加「真正在烧」的时间，所以暂停后不会再走
+function burnTick(now) {
+  if (puffState !== PUFF_BURNING) return;
+
+  if (burnLastTs) burnElapsed += now - burnLastTs;
+  burnLastTs = now;
+
+  const p = Math.min(1, burnElapsed / burnTotal);
+  puffProgress = burnFrom + (burnTo - burnFrom) * p;
+  applyCigProgress();
+  updatePuffButtons();
+
+  if (p >= 1) {
+    finishBurn();
+    return;
+  }
+  burnRAF = requestAnimationFrame(burnTick);
+}
+
+// 暂停：停掉动画帧，烟不再上升，火光暗下来
+function pauseBurn() {
+  if (puffState !== PUFF_BURNING) return;
+
+  puffState = PUFF_PAUSED;
+  if (burnRAF) cancelAnimationFrame(burnRAF);
+  burnRAF = null;
+  burnLastTs = 0;
+
+  $('smokeWrap').classList.remove('opacity-100');
+  $('smokeWrap').classList.add('opacity-0');
+  $('ember').classList.remove('ember-hot');
+  $('puffTip').textContent = '已经停在这一口了。准备好时，按「重燃」继续。';
+
+  updatePuffButtons();
+  savePuff();
+}
+
+// 重燃：从暂停处继续烧
+function resumeBurn() {
+  if (puffState !== PUFF_PAUSED) return;
+
+  puffState = PUFF_BURNING;
+  burnLastTs = 0;   // 关键：避免把暂停的那段时间也算进去
+
+  $('smokeWrap').classList.remove('opacity-0');
+  $('smokeWrap').classList.add('opacity-100');
+  $('ember').classList.add('ember-hot');
+  $('puffTip').textContent = '跟着这缕烟，慢慢呼吸，等它过去。';
+
+  updatePuffButtons();
+  burnRAF = requestAnimationFrame(burnTick);
+}
+
+// 这一口烧完：熄火、收尾，烧到尽头就换一根新的
+function finishBurn() {
+  puffState = PUFF_IDLE;
+  burnRAF = null;
+
+  $('smokeWrap').classList.add('opacity-0');
+  $('smokeWrap').classList.remove('opacity-100');
+  $('ember').classList.remove('ember-hot');
+
+  if (puffProgress >= 0.999) {
+    puffProgress = 0;
+    applyCigProgress();
+    $('puffTip').textContent = '这一根烧完了。你一口都没有真正吸进去。';
+  } else {
+    $('puffTip').textContent = '这 30 秒，你又温柔地赢了自己一次。';
+  }
+
+  updatePuffButtons();
+  savePuff();
+}
+
+// 确认层点「点这一口」后进入这里
+function doPuff() {
+  if (puffState !== PUFF_IDLE) return;
+  startBurn();
+}
+
+// 外部打断（例如点「重新开始」）时，把正在燃烧的烟停掉
+function stopPuffIfActive() {
+  if (puffState === PUFF_IDLE) return;
+
+  if (burnRAF) cancelAnimationFrame(burnRAF);
+  burnRAF = null;
+  puffState = PUFF_IDLE;
+  burnLastTs = 0;
+
+  $('smokeWrap').classList.add('opacity-0');
+  $('smokeWrap').classList.remove('opacity-100');
+  $('ember').classList.remove('ember-hot');
+  $('puffTip').textContent = '点一口，让冲动慢慢散掉。';
+
+  updatePuffButtons();
+  savePuff();
+}
+
+/* ============================================================
+   十二、抽烟习惯问卷 & 我的成果
+   ============================================================ */
+
+// 通用弹窗显隐
+function toggleModal(id, show) {
+  const modal = $(id);
+  modal.classList.toggle('hidden', !show);
+  modal.classList.toggle('flex', show);
+}
+
+// 读取本地保存的习惯；没有或损坏就用默认值兜底
+function loadHabit() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(KEY_HABIT));
+    if (saved && saved.dailyCigs > 0 && saved.cigsPerPack > 0 && saved.packPrice >= 0) {
+      habit = {
+        dailyCigs: Number(saved.dailyCigs),
+        packPrice: Number(saved.packPrice),
+        cigsPerPack: Number(saved.cigsPerPack)
+      };
+    }
+  } catch (e) {
+    // 解析失败就保持默认值，不影响使用
+  }
+}
+
+// 读取习惯变更历史；没有记录时，把当前习惯迁移成「第一段」
+function loadHabitHistory() {
+  try {
+    const raw = JSON.parse(localStorage.getItem(KEY_HABIT_HISTORY));
+    if (Array.isArray(raw) && raw.length > 0) {
+      habitHistory = raw
+        .filter((s) => s && Number.isFinite(Number(s.at)) && Number(s.dailyCigs) > 0 &&
+          Number(s.packPrice) >= 0 && Number(s.cigsPerPack) > 0)
+        .map((s) => ({
+          at: Number(s.at),
+          dailyCigs: Number(s.dailyCigs),
+          packPrice: Number(s.packPrice),
+          cigsPerPack: Number(s.cigsPerPack)
+        }))
+        .sort((a, b) => a.at - b.at);
+    }
+  } catch (e) {
+    habitHistory = [];
+  }
+
+  // 老用户或首次使用：补一段，起点对齐戒烟开始时间
+  if (habitHistory.length === 0) {
+    habitHistory = [{ at: startTime || Date.now(), ...habit }];
+    saveHabitHistory();
+  }
+}
+
+function saveHabitHistory() {
+  localStorage.setItem(KEY_HABIT_HISTORY, JSON.stringify(habitHistory));
+}
+
+/**
+ * 保存一次习惯变更：
+ * - 还没开始戒烟：只更新当前习惯，不产生历史段
+ * - 第一次开始：第一段从戒烟起点生效
+ * - 之后调整：追加一段从此刻生效（1 分钟内反复改则合并最后一段）
+ */
+function saveHabitChange(nextHabit) {
+  habit = nextHabit;
+  localStorage.setItem(KEY_HABIT, JSON.stringify(habit));
+
+  if (!startTime) return;
+
+  const now = Date.now();
+  const last = habitHistory[habitHistory.length - 1];
+
+  if (habitHistory.length === 0) {
+    habitHistory.push({ at: startTime, ...habit });
+  } else if (last && now - last.at < 60 * 1000) {
+    Object.assign(last, habit); // 短时间内重复调整，覆盖最后一段
+  } else {
+    habitHistory.push({ at: now, ...habit });
+  }
+
+  saveHabitHistory();
+}
+
+// 打开问卷，输入框用当前习惯预填
+function openHabitModal() {
+  $('habitDaily').value = habit.dailyCigs;
+  $('habitPrice').value = habit.packPrice;
+  $('habitPerPack').value = habit.cigsPerPack;
+  $('habitTip').classList.add('hidden');
+  toggleModal('habitModal', true);
+}
+
+function closeHabitModal() {
+  toggleModal('habitModal', false);
+}
+
+// 刷新「我的成果」窗口里的数字与说明
+function updateResultWindow() {
+  const totals = calcTotals(Date.now());
+  const perDayMoney = habit.dailyCigs * habit.packPrice / habit.cigsPerPack;
+  const segments = habitHistory.length;
+
+  tweenNumber($('resultCigs'), Math.floor(totals.cigs));
+  tweenNumber($('resultMoney'), totals.money, 1);
+
+  // 说明算法：数字是按各阶段习惯分段累加出来的
+  let desc = '当前习惯：每天 ' + habit.dailyCigs + ' 根，按 ' + habit.packPrice +
+    ' 元一包、每包 ' + habit.cigsPerPack + ' 根算，每天大约 ' + perDayMoney.toFixed(1) + ' 元。';
+
+  if (segments > 1) {
+    desc += '期间调整过 ' + (segments - 1) + ' 次习惯，调整之前的时间按当时的习惯计算。';
+  }
+
+  $('resultDesc').textContent = desc + '这些，现在都留在了身后。';
+}
+
+function openResultModal() {
+  updateResultWindow();
+  toggleModal('resultModal', true);
+}
+
+/* ============================================================
+   十三、数据备份与离线
+   ============================================================ */
+
+// 导出：把 localStorage 里的记录打包成一个 JSON 文件
+function exportData() {
+  const payload = {
+    app: 'quit-smoking',
+    version: 1,
+    exportedAt: new Date().toISOString(),
+    startTime: localStorage.getItem(KEY_START),
+    habit: localStorage.getItem(KEY_HABIT),
+    habitHistory: localStorage.getItem(KEY_HABIT_HISTORY),
+    badges: localStorage.getItem(KEY_BADGES),
+    puff: localStorage.getItem(KEY_PUFF)
+  };
+
+  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+
+  const pad = (n) => String(n).padStart(2, '0');
+  const d = new Date();
+
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = '戒烟记录-' + d.getFullYear() + pad(d.getMonth() + 1) + pad(d.getDate()) + '.json';
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
+// 导入：读取备份文件，逐项校验后再写回 localStorage
+function importData(file) {
+  const reader = new FileReader();
+
+  reader.onload = () => {
+    try {
+      const data = JSON.parse(String(reader.result));
+
+      if (!data || data.app !== 'quit-smoking') {
+        throw new Error('这不是本应用的备份文件');
+      }
+
+      // 起始时间：必须是正数时间戳
+      if (data.startTime !== null && data.startTime !== undefined && data.startTime !== '') {
+        const ts = Number(data.startTime);
+        if (!Number.isFinite(ts) || ts <= 0) throw new Error('备份里的起始时间不合法');
+        localStorage.setItem(KEY_START, String(ts));
+      }
+
+      // 抽烟习惯：兼容「JSON 字符串」和「对象」两种写法
+      if (data.habit) {
+        const h = typeof data.habit === 'string' ? JSON.parse(data.habit) : data.habit;
+        if (!h || !(h.dailyCigs > 0) || !(h.cigsPerPack > 0) || !(h.packPrice >= 0)) {
+          throw new Error('备份里的抽烟习惯不合法');
+        }
+        localStorage.setItem(KEY_HABIT, JSON.stringify({
+          dailyCigs: Number(h.dailyCigs),
+          packPrice: Number(h.packPrice),
+          cigsPerPack: Number(h.cigsPerPack)
+        }));
+      }
+
+      // 习惯变更历史：必须是数组
+      if (data.habitHistory) {
+        const hist = typeof data.habitHistory === 'string' ? JSON.parse(data.habitHistory) : data.habitHistory;
+        if (!Array.isArray(hist)) throw new Error('备份里的习惯历史不合法');
+        if (hist.length > 0) localStorage.setItem(KEY_HABIT_HISTORY, JSON.stringify(hist));
+      }
+
+      // 徽章：必须是数组
+      if (data.badges) {
+        const b = typeof data.badges === 'string' ? JSON.parse(data.badges) : data.badges;
+        if (!Array.isArray(b)) throw new Error('备份里的徽章数据不合法');
+        localStorage.setItem(KEY_BADGES, JSON.stringify(b));
+      }
+
+      // 虚拟香烟进度：只接受 0 ~ 1
+      if (data.puff !== null && data.puff !== undefined && data.puff !== '') {
+        const p = Number(data.puff);
+        if (Number.isFinite(p) && p >= 0 && p <= 1) {
+          localStorage.setItem(KEY_PUFF, String(p));
+        }
+      }
+
+      alert('导入成功，页面即将刷新。');
+      location.reload();
+    } catch (err) {
+      alert('导入失败：' + (err.message || '文件格式不正确'));
+    }
+  };
+
+  reader.onerror = () => alert('读取文件失败，请重试。');
+  reader.readAsText(file);
+}
+
+// 注册 Service Worker：仅 http/https 可用；file:// 下注册必然失败，直接跳过
+function registerServiceWorker() {
+  if (!('serviceWorker' in navigator)) return;
+  if (location.protocol === 'file:') return;
+
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('./sw.js').catch(() => {
+      // 注册失败（如非安全上下文）不影响页面正常使用
+    });
+  });
+}
+
+/* ============================================================
+   十四、初始化
+   ============================================================ */
+
+// 弹窗的统一关闭方式：点遮罩空白处、按 ESC
+function bindModalDismiss() {
+  const layers = [
+    { id: 'confirmModal', close: () => toggleConfirm(false) },
+    { id: 'habitModal', close: () => { pendingStartTime = null; closeHabitModal(); } },
+    { id: 'resultModal', close: () => toggleModal('resultModal', false) },
+    { id: 'puffConfirm', close: () => togglePuffConfirm(false) }
+  ];
+
+  // 只有点在遮罩本身（而不是内容区）时才关闭
+  layers.forEach(({ id, close }) => {
+    const el = $(id);
+    el.addEventListener('click', (e) => {
+      if (e.target === el) close();
+    });
+  });
+
+  // ESC 关闭当前可见的那一层
+  document.addEventListener('keydown', (e) => {
+    if (e.key !== 'Escape' && e.key !== 'Esc') return;
+    for (const { id, close } of layers) {
+      if (!$(id).classList.contains('hidden')) {
+        close();
+        return;
+      }
+    }
+  });
+}
+
+// 呼吸练习 + 虚拟香烟的事件绑定
+function bindExtraEvents() {
+  // 呼吸：开始 / 停止
+  $('breathBtn').addEventListener('click', () => {
+    if ($('breathBtn').dataset.running === '1') stopBreath();
+    else startBreath();
+  });
+
+  // 点一口：先随机刷新一条语录，再弹出确认层
+  $('puffBtn').addEventListener('click', () => {
+    if (puffState !== PUFF_IDLE) return;   // 燃烧或暂停中不重复点火
+    const quote = renderQuote();          // 顺便刷新页面上方的励志语录
+    $('puffQuote').textContent = quote || $('quoteText').textContent;
+    togglePuffConfirm(true);
+  });
+
+  // 再等等：收起确认层
+  $('puffCancel').addEventListener('click', () => togglePuffConfirm(false));
+
+  // 确认：开始燃烧 30 秒
+  $('puffGo').addEventListener('click', () => {
+    togglePuffConfirm(false);
+    doPuff();
+  });
+
+  // 暂停 / 重燃
+  $('pauseBtn').addEventListener('click', pauseBurn);
+  $('resumeBtn').addEventListener('click', resumeBurn);
+
+  // 问卷确认：保存习惯，并按「从哪来」决定下一步
+  $('habitConfirm').addEventListener('click', () => {
+    const daily = Number($('habitDaily').value);
+    const price = Number($('habitPrice').value);
+    const perPack = Number($('habitPerPack').value);
+
+    if (!(daily > 0) || !(perPack > 0) || !(price >= 0)) {
+      $('habitTip').textContent = '数值填得合理一点哦，比如每天 20 根、22 元一包。';
+      $('habitTip').classList.remove('hidden');
+      return;
+    }
+
+    const nextHabit = { dailyCigs: daily, packPrice: price, cigsPerPack: perPack };
+
+    if (pendingStartTime !== null) {
+      // 来自「开始我的旅程」：先确定起点，再把习惯作为第一段落地
+      startTime = pendingStartTime;
+      pendingStartTime = null;
+      localStorage.setItem(KEY_START, String(startTime));
+
+      habitHistory = [];            // 全新开始，清掉旧的分段
+      saveHabitChange(nextHabit);   // 第一段从 startTime 生效
+
+      closeHabitModal();
+      showRunning();
+      openResultModal();
+    } else {
+      // 来自「调整习惯」：只追加一段，历史照旧保留
+      saveHabitChange(nextHabit);
+      closeHabitModal();
+      render();
+      openResultModal();
+    }
+  });
+
+  // 问卷取消：丢掉暂存的开始时间
+  $('habitCancel').addEventListener('click', () => {
+    pendingStartTime = null;
+    closeHabitModal();
+  });
+
+  // 成果窗口
+  $('openResultBtn').addEventListener('click', openResultModal);
+  $('resultClose').addEventListener('click', () => toggleModal('resultModal', false));
+  $('resultHabit').addEventListener('click', () => {
+    toggleModal('resultModal', false);
+    openHabitModal();
+  });
+
+  // 数据备份：导出 / 导入
+  $('exportBtn').addEventListener('click', exportData);
+  $('importBtn').addEventListener('click', () => $('importFile').click());
+  $('importFile').addEventListener('change', (e) => {
+    const file = e.target.files && e.target.files[0];
+    if (file) importData(file);
+    e.target.value = '';   // 清空 value，允许连续导入同一个文件
+  });
+}
+
+function init() {
+  buildBadges();
+  renderQuote();
+  bindEvents();
+  bindExtraEvents();
+  bindModalDismiss();
+
+  // 1) 先读戒烟起点：习惯分段计算要用它作为第一段的开始
+  const savedStart = localStorage.getItem(KEY_START);
+  const startTs = Number(savedStart);
+  startTime = savedStart && Number.isFinite(startTs) && startTs > 0 ? startTs : null;
+
+  // 2) 再读当前习惯与习惯变更历史（没有历史会自动迁移成一段）
+  loadHabit();
+  loadHabitHistory();
+
+  // 读取虚拟香烟进度，刷新后保持原样；烧满的旧数据归零，避免卡在「只剩滤嘴」
+  puffProgress = Math.min(1, Number(localStorage.getItem(KEY_PUFF)) || 0);
+  if (puffProgress >= 0.999) puffProgress = 0;
+  applyCigProgress();
+  updatePuffButtons();   // 初始化「暂停 / 重燃」的可用状态
+
+  // 读取已提示过的徽章记录（解析失败就当作空）
+  try {
+    unlockedBadges = JSON.parse(localStorage.getItem(KEY_BADGES)) || [];
+  } catch (e) {
+    unlockedBadges = [];
+  }
+
+  if (startTime) {
+    showRunning(); // 有记录 → 直接进入运行态
+  } else {
+    $('startInput').value = toLocalInputValue(new Date());
+    showSetup();   // 没记录 → 显示设置区
+  }
+
+  // 通过 http/https 打开时注册离线缓存（file:// 会自动跳过）
+  registerServiceWorker();
+}
+
+// 脚本在 body 末尾，此时 DOM 已就绪
+init();
+
+</script>
+</body>
+</html>
